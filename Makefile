@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -O3
 
 INPUT = main.cpp
 OUTPUT = ImageMaker

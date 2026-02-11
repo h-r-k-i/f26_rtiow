@@ -55,8 +55,8 @@ int main() {
 
     cam.aspectratio = 16.l / 9.l;
     cam.imageWidth = 1200;
-    cam.samples_per_pixel = 500;
-    cam.max_depth = 50;
+    cam.samples_per_pixel = 20;
+    cam.max_depth = 4;
 
     cam.vfov = 20;
     cam.lookfrom = point3(13, 2, 3);
