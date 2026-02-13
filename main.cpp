@@ -28,7 +28,8 @@ int main() {
                 if (choose_mat < 0.8) {
                     auto albedo = color::random() * color::random();
                     sphere_material = make_shared<lambertian>(albedo);
-                    world.add(make_shared<sphere>(center, 0.2, sphere_material));
+                    auto center2 = center + vec3(0, random_double(0.l, 0.5), 0);
+                    world.add(make_shared<sphere>(center, center2, 0.2, sphere_material));
                 }
                 else if (choose_mat < 0.95) {
                     auto albedo = color::random(0.5, 1);
@@ -56,9 +57,9 @@ int main() {
     camera cam;
 
     cam.aspectratio = 16.l / 9.l;
-    cam.imageWidth = 3840;
-    cam.samples_per_pixel = 500;
-    cam.max_depth = 15;
+    cam.imageWidth = 400;
+    cam.samples_per_pixel = 100;
+    cam.max_depth = 5;
 
     cam.vfov = 20;
     cam.lookfrom = point3(13, 2, 3);
