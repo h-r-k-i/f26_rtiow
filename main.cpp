@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "rtweekend.hpp"
 
 #include "camera.hpp"
@@ -6,17 +8,17 @@
 #include "material.hpp"
 #include "sphere.hpp"
 
-int main() {
+const int tileSize = 32;
 
-    
+int main() {
 
     hittable_list world;
 
     auto ground_material = make_shared<lambertian>(color(0.5, 0.5, 0.5));
     world.add(make_shared<sphere>(point3(0, -1000, 0), 1000, ground_material));
 
-    for (int a = -11; a < 11; a++) {
-        for (int b = -11; b < 11; b++) {
+    for (int a = -22; a < 22; a++) {
+        for (int b = -22; b < 22; b++) {
             auto choose_mat = random_double();
             point3 center(a + 0.9*random_double(), 0.2, b + 0.9*random_double());
 
@@ -54,9 +56,9 @@ int main() {
     camera cam;
 
     cam.aspectratio = 16.l / 9.l;
-    cam.imageWidth = 1200;
-    cam.samples_per_pixel = 20;
-    cam.max_depth = 4;
+    cam.imageWidth = 3840;
+    cam.samples_per_pixel = 500;
+    cam.max_depth = 15;
 
     cam.vfov = 20;
     cam.lookfrom = point3(13, 2, 3);
@@ -65,6 +67,40 @@ int main() {
     cam.defocus_angle = 0.6;
     cam.focus_dist = 10.0;
 
-    cam.render(world);
+    auto file = "image2.ppm";
+    std::ofstream File(file);
+
+    File << "P3\n" << cam.imageWidth << ' ' << (int)(cam.imageWidth / cam.aspectratio) << "\n255\n";
+
+    std::vector<color> framebuffer(cam.imageWidth * (cam.imageWidth / cam.aspectratio));
+    int imageHeight = (cam.imageWidth / cam.aspectratio);
+    int cBx = (int)(std::ceil((double)cam.imageWidth / tileSize));
+    int cBy = (int)(std::ceil(((double)imageHeight / tileSize)));
+    std::vector<Cell> cellBuffer;
+
+
+    for (int y = 0; y < cBy; y++) {
+        for (int x = 0; x < cBx; x++) {
+            cellBuffer.push_back(Cell{
+                x * tileSize,
+                std::min((x + 1) * tileSize, cam.imageWidth),
+                y * tileSize,
+                std::min((y + 1) * tileSize, imageHeight)
+            });
+        }
+    }
+
+
+    cam.render(world, framebuffer, cellBuffer);
+
+    auto pixelCount = framebuffer.size();
+
+    for (auto pixel : framebuffer) {
+        std::clog << "\rPixels remaining: " << (pixelCount--) << ' ' <<  std::flush;
+        write_color(File, pixel);
+    }
+    std::clog << "\rWriting to " << file << " done.                   \n";
+
+    File.close();
 }
 

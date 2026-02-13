@@ -1,6 +1,9 @@
 #ifndef CAMERA_HPP
 #define CAMERA_HPP
 
+#include <atomic>
+#include <thread>
+
 #include "hittable.hpp"
 #include "material.hpp"
 
@@ -17,24 +20,38 @@ class camera {
         double defocus_angle = 0;
         double focus_dist = 10;
 
-        void render(const hittable& world) {
+        void render(const hittable& world, std::vector<color>& buffer, std::vector<Cell>& cells) {
             initialize();
+            std::atomic<size_t> next_cell(0);
+            std::atomic<size_t> complete(0);
+            const int VirtualCores = std::thread::hardware_concurrency();
 
-            std::cout << "P3\n" << imageWidth << ' ' << imageHeight << "\n255\n";
+            std::vector<std::thread> threads;
 
-            for (int j = 0; j < imageHeight; j++) {
-                std::clog << "\rScanlines remaining: " << (imageHeight - j) << ' ' << std::flush;
-                for (int i = 0; i < imageWidth; i++) {
-                    color pixel(0, 0, 0);
-                    for (int sample = 0; sample < samples_per_pixel; sample++) {
-                        ray r = get_ray(i, j);
-                        pixel += ray_color(r, max_depth, world);
+            for (int i = 0; i < VirtualCores; i++) {
+                threads.emplace_back([&]() {
+                    while (true) {
+                        size_t cell_idx = next_cell.fetch_add(1);
+                        if (cell_idx > cells.size()) break;
+
+                        render_thread(buffer, cells[cell_idx], world);
+                        size_t done = complete.fetch_add(1);
+                        std::clog << "\rCells completed: " << done << '/' << cells.size() << "           " << std::flush;
                     }
-                    write_color(std::cout, pixel_samples_scale * pixel);
-                }
+                });
             }
 
-            std::clog << "\rDone.                 \n";
+            for (auto& thread : threads) {
+                
+                thread.join();
+            }
+
+            std::clog << "\rRendering done.                                                                    \n";
+        }
+
+        int getImageHeight() {
+            if (!initialized) initialize();
+            return imageHeight;
         }
     
     private:
@@ -47,8 +64,10 @@ class camera {
         vec3 u, v, w;
         vec3 defocus_disk_u;
         vec3 defocus_disk_v;
+        bool initialized = false;
 
         void initialize() {
+            initialized = true;
             imageHeight = int(imageWidth / aspectratio);
             imageHeight = (imageHeight < 1) ? 1 : imageHeight;
 
@@ -101,20 +120,46 @@ class camera {
         }
 
         color ray_color(const ray& r, int depth, const hittable& world) const {
-            if (depth <= 0) return color(0, 0, 0);
-            hit_record rec;
-
-            if (world.hit(r, interval(0.001, infinity), rec)) {
-                ray scattered;
-                color attenuation;
-                if (rec.mat->scatter(r, rec, attenuation, scattered))
-                    return attenuation * ray_color(scattered, depth - 1, world);
-                return color(0, 0, 0);
-            }
+            color accumulated_color(1, 1, 1);
+            ray current_ray = r;
             
-            vec3 unitDirection = unit_vector(r.direction());
-            auto a = 0.5 * (unitDirection.y() + 1.l);
-            return (1.0 - a) * color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
+            for (int i = 0; i < depth; i++) {
+                hit_record rec;
+                
+                if (world.hit(current_ray, interval(0.001, infinity), rec)) {
+                    ray scattered;
+                    color attenuation;
+                    
+                    if (rec.mat->scatter(current_ray, rec, attenuation, scattered)) {
+                        accumulated_color = accumulated_color * attenuation;
+                        current_ray = scattered;
+                    } else {
+                        return color(0, 0, 0);
+                    }
+                } else {
+                    vec3 unitDirection = unit_vector(current_ray.direction());
+                    auto a = 0.5 * (unitDirection.y() + 1.0);
+                    color sky = (1.0 - a) * color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
+                    return accumulated_color * sky;
+                }
+            }
+            return color(0, 0, 0);
+        }
+
+        void render_thread(std::vector<color>& buffer, Cell cell, const hittable& world) {
+            for (int j = cell.h0; j < cell.h1; j++) {
+                // std::clog << "\rScanlines remaining: " << (imageHeight - j) << ' ' << std::flush;
+                for (int i = cell.w0; i < cell.w1; i++) {
+                    color px(0, 0, 0);
+                    for (int sample = 0; sample < samples_per_pixel; sample++) {
+                        ray r = get_ray(i, j);
+                        px += ray_color(r, max_depth, world);
+                    }
+                    buffer[j * imageWidth + i] = pixel_samples_scale * px;
+                }
+            }
+
+            // std::clog << "\rRendering done.                 \n";
         }
 
 };
