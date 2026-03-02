@@ -2,6 +2,7 @@
 #define MATERIAL_HPP
 
 #include "hittable.hpp"
+#include "texture.hpp"
 
 class material {
     public:
@@ -10,11 +11,16 @@ class material {
         virtual bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered) const {
             return false;
         }
+
+        virtual color emitted(double u, double v, const point3& p) const {
+            return color(0, 0, 0);
+        }
 };
 
 class lambertian : public material {
     public:
-        lambertian(const color& albedo) : albedo(albedo) {}
+        lambertian(const color& albedo) : tex(make_shared<solid_color>(albedo)) {}
+        lambertian(shared_ptr<texture> tex) : tex(tex) {}
 
         bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered) const override {
             auto scatter_direction = rec.normal + random_unit_vector();
@@ -22,12 +28,12 @@ class lambertian : public material {
             if (scatter_direction.near_zero()) scatter_direction = rec.normal;
 
             scattered = ray(rec.p, scatter_direction, r_in.time());
-            attenuation = albedo;
+            attenuation = tex->value(rec.u, rec.v, rec.p);
             return true;
         }
     
     private:
-        color albedo;
+        shared_ptr<texture> tex;
 };
 
 class metal : public material {
@@ -75,9 +81,37 @@ class dielectric : public material {
 
         static double reflectance(double cosine, double refraction_index) {
             auto r0 = (1 - refraction_index) / (1 + refraction_index);
-            r0 *= r0;
+            r0 = r0 * r0;
             return r0 + (1 - r0) * std::pow((1 - cosine), 5);
         }
+};
+
+class diffuse_light : public material {
+    public:
+        diffuse_light(shared_ptr<texture> tex) : tex(tex) {}
+        diffuse_light(const color& emit) : tex(make_shared<solid_color>(emit)) {}
+
+        color emitted(double u, double v, const point3& p) const override {
+            return tex->value(u, v, p);
+        }
+    private:
+        shared_ptr<texture> tex;
+};
+
+class isotropic : public material {
+    public:
+        isotropic(const color& albedo) : tex(make_shared<solid_color>(albedo)) {}
+        isotropic(shared_ptr<texture> tex) : tex(tex) {}
+
+        bool scatter(const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered) const override {
+            scattered = ray(rec.p, random_unit_vector(), r_in.time());
+            attenuation = tex->value(rec.u, rec.v, rec.p);
+            return true;
+        }
+
+
+    private:
+        shared_ptr<texture> tex;
 };
 
 #endif // MATERIAL_HPP

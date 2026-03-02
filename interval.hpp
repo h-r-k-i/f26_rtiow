@@ -8,9 +8,14 @@ class interval {
         interval() : min(+infinity), max(-infinity) {}
 
         interval(double min, double max) : min(min), max(max) {}
+
+        interval(const interval& a, const interval& b) {
+            min = a.min <= b.min ? a.min : b.min;
+            max = a.max >= b.max ? a.max : b.max;
+        }
         
         double size() const {
-            return min - max;
+            return max - min;
         }
 
         bool contains(double x) const {
@@ -37,5 +42,13 @@ class interval {
 
 const interval interval::empty =    interval(+infinity, -infinity);
 const interval interval::universe = interval(-infinity, +infinity);
+
+interval operator+(const interval& ival, double displacement) {
+    return interval(ival.min + displacement, ival.max + displacement);
+}
+
+interval operator+(double displacement, const interval& ival) {
+    return ival + displacement;
+}
 
 #endif // INTERVAL_HPP

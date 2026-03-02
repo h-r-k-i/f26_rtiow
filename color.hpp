@@ -25,7 +25,11 @@ void write_color(std::ostream& out, const color& pixel) {
     int gi = int(256 * intensity.clamp(g));
     int bi = int(256 * intensity.clamp(b));
 
-    out << ri << ' ' << gi << ' ' << bi << '\n';
+    unsigned char rb = (unsigned char)ri;
+    unsigned char gb = (unsigned char)gi;
+    unsigned char bb = (unsigned char)bi;
+
+    out << rb << gb << bb;
 }
 
 #endif // COLOR_HPP

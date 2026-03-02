@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -Wall -Wextra -O3 -march=native -ffast-math
+CFLAGS = -Wall -Wextra -ffast-math -O3 -march=native
 
 INPUT = main.cpp
 OUTPUT = ImageMaker

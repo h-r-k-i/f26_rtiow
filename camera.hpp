@@ -19,6 +19,7 @@ class camera {
         vec3 vup = vec3(0, 1, 0);
         double defocus_angle = 0;
         double focus_dist = 10;
+        color background;
 
         void render(const hittable& world, std::vector<color>& buffer, std::vector<Cell>& cells) {
             initialize();
@@ -27,15 +28,16 @@ class camera {
             const int VirtualCores = std::thread::hardware_concurrency();
 
             std::vector<std::thread> threads;
+            threads.reserve(VirtualCores);
 
             for (int i = 0; i < VirtualCores; i++) {
                 threads.emplace_back([&]() {
                     while (true) {
                         size_t cell_idx = next_cell.fetch_add(1);
-                        if (cell_idx > cells.size()) break;
+                        if (cell_idx >= cells.size()) break;
 
                         render_thread(buffer, cells[cell_idx], world);
-                        size_t done = complete.fetch_add(1);
+                        size_t done = complete.fetch_add(1, std::memory_order_relaxed);
                         std::clog << "\rCells completed: " << done << '/' << cells.size() << "           " << std::flush;
                     }
                 });
@@ -115,36 +117,30 @@ class camera {
             return vec3(random_double() - 0.5, random_double() - 0.5, 0);
         }
 
+        vec3 sample_disk(double radius) const {
+            return radius * random_in_unit_disk();
+        }
+
         point3 defocus_disk_sample() const {
             auto p = random_in_unit_disk();
             return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
         }
 
         color ray_color(const ray& r, int depth, const hittable& world) const {
-            color accumulated_color(1, 1, 1);
-            ray current_ray = r;
-            
-            for (int i = 0; i < depth; i++) {
-                hit_record rec;
-                
-                if (world.hit(current_ray, interval(0.001, infinity), rec)) {
-                    ray scattered;
-                    color attenuation;
-                    
-                    if (rec.mat->scatter(current_ray, rec, attenuation, scattered)) {
-                        accumulated_color = accumulated_color * attenuation;
-                        current_ray = scattered;
-                    } else {
-                        return color(0, 0, 0);
-                    }
-                } else {
-                    vec3 unitDirection = unit_vector(current_ray.direction());
-                    auto a = 0.5 * (unitDirection.y() + 1.0);
-                    color sky = (1.0 - a) * color(1.0, 1.0, 1.0) + a * color(0.5, 0.7, 1.0);
-                    return accumulated_color * sky;
-                }
-            }
-            return color(0, 0, 0);
+            if (depth <= 0) return color(0, 0, 0);
+            hit_record rec;
+
+            if (!world.hit(r, interval(0.001, infinity), rec)) return background;
+
+            ray scattered;
+            color attenuation;
+            color color_from_emission = rec.mat->emitted(rec.u, rec.v, rec.p);
+
+            if (!rec.mat->scatter(r, rec, attenuation, scattered)) return color_from_emission;
+
+            color color_from_scatter = attenuation * ray_color(scattered, depth - 1, world);
+
+            return color_from_emission + color_from_scatter;
         }
 
         void render_thread(std::vector<color>& buffer, Cell cell, const hittable& world) {
