@@ -22,7 +22,7 @@ cd f26_rtiow
 # Build with command line (replace g++ with preferred compiler)
 g++ -std=c++11 -O3 main.cpp -o raytracer
 
-# Or use CMake (according to Claude; I don't use CMake)
+# Or use CMake (according to Claude; I don't use CMake, and I have not provided a CMakeLists.txt)
 mkdir build && cd build
 cmake ..
 make
